@@ -1,0 +1,12 @@
+.git
+.gitignore
+.env
+.DS_Store
+node_modules
+dist
+dist-web
+data
+coverage
+*.log
+PLANO.md
+README.md

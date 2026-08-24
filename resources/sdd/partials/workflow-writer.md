@@ -1,0 +1,1 @@
+O `workflow.json` tem um unico escritor por fase: o agente que assume o papel de orquestrador — o agente principal do comando, ou o `sdd-orchestrator` quando a fase foi delegada a ele. Apos delegar uma fase, o comando nao escreve `workflow.json` ate o retorno; dados produzidos pelo delegado voltam no resultado e sao persistidos por um unico escritor.

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SDD — Fluxo Visual (1 página)</title>
+  <style>
+    :root { --accent:#1a5276; --text:#1a1a1a; --muted:#555; --border:#ccc; --codebg:#f3f4f6; }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #fff; color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      line-height: 1.35; font-size: 10px;
+    }
+    #content { padding: 8mm 10mm; }
+    h1 { font-size: 16px; border-bottom: 2px solid var(--accent); padding-bottom: 3px; margin-bottom: 2px; }
+    .subtitle { color: var(--muted); font-size: 9px; margin-bottom: 6px; }
+    h2 { font-size: 11px; margin-top: 0; margin-bottom: 4px; border-bottom: 1px solid var(--border); padding-bottom: 2px; }
+    h3 { font-size: 10px; margin-top: 6px; margin-bottom: 3px; }
+    p { margin: 3px 0; }
+    code { background: var(--codebg); padding: 1px 3px; border-radius: 3px; font-size: 0.82em;
+      font-family: "SF Mono", Consolas, "Liberation Mono", Menlo, monospace; }
+    pre { background: var(--codebg); padding: 4px 6px; border-radius: 4px; overflow-x: auto; margin: 3px 0; font-size: 9px; }
+    pre code { background: none; padding: 0; }
+    blockquote { margin: 4px 0; padding: 3px 8px; background: #eaf2f8; border-left: 3px solid var(--accent); color: var(--muted); border-radius: 3px; }
+    ul, ol { margin: 3px 0; padding-left: 14px; }
+    li { margin: 1px 0; }
+    hr { border: 0; border-top: 1px solid var(--border); margin: 6px 0; }
+    .mermaid { text-align: center; margin: 2px 0; }
+    .mermaid svg { max-width: 100%; height: auto; }
+    .mermaid-container { transform: scale(0.6); transform-origin: top center; }
+
+    /* Layout: diagrama à esquerda, texto à direita */
+    .main-layout {
+      display: grid;
+      grid-template-columns: 38% 62%;
+      gap: 12px;
+      margin-top: 4px;
+    }
+    .left-panel { min-width: 0; }
+    .right-panel { min-width: 0; }
+    .right-panel .two-col {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+    }
+    .col { min-width: 0; }
+
+    /* Barra flutuante (some na impressão) */
+    #bar {
+      position: fixed; top: 12px; right: 12px; z-index: 999; display: flex; gap: 8px; align-items: center;
+    }
+    #bar button {
+      background: var(--accent); color: #fff; border: 0; border-radius: 6px;
+      padding: 8px 14px; font-size: 12px; font-weight: 700; cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,.12);
+    }
+    #status { position: fixed; top: 48px; right: 12px; z-index: 999; font-size: 10px; color: var(--muted); }
+
+    @media print {
+      #bar, #status { display: none !important; }
+      #content { padding: 0; }
+      @page { size: A4 landscape; margin: 6mm; }
+      .main-layout { gap: 10px; }
+      .right-panel .two-col { gap: 8px; }
+      h2, h3 { page-break-after: avoid; }
+      pre, ul, blockquote { page-break-inside: avoid; }
+    }
+    /* Oculta header/footer do browser na impressao */
+    @media print {
+      @top-left, @top-center, @top-right,
+      @bottom-left, @bottom-center, @bottom-right {
+        content: none !important;
+      }
+    }
+    @media screen {
+      #content { max-width: 1100px; margin: 0 auto; }
+    }
+  </style>
+</head>
+<body>
+  <div id="bar">
+    <button onclick="window.print()">🖨️ Salvar como PDF</button>
+  </div>
+  <div id="status">carregando diagrama…</div>
+
+  <div id="content">
+    <h1>Fluxo Visual SDD</h1>
+    <p class="subtitle">Caminho feliz do SDD Cloud — da instrumentação inicial à execução das tarefas planejadas.</p>
+
+    <div class="main-layout">
+      <!-- PAINEL ESQUERDA: Diagrama Mermaid -->
+      <div class="left-panel">
+        <div class="mermaid">
+flowchart TD
+  A["sem SDD"] --> B["init preview"]
+  B --> C{"revisar"}
+  C -->|ok| D["init apply"]
+  C -->|nao| B
+  D --> E["constituicao"]
+  E --> F["/sdd-task"]
+  F --> G{"JIRA_GATE"}
+  G -->|sem| H["vincular Jira"]
+  H --> G
+  G -->|ok| I["Task Jira"]
+  I --> J["/sdd-plan"]
+  J --> K["PLAN_STARTED"]
+  K --> L["REFINEMENT_GATE"]
+  L --> M{"refinada?"}
+  M -->|nao| N["blockers"]
+  N --> O["confirma"]
+  O --> P["atualiza Jira"]
+  P --> L
+  M -->|sim| Q["anexos"]
+  Q --> R["spec"]
+  R --> S["research"]
+  S --> T["plan+tasks"]
+  T --> U["subtasks"]
+  U --> V{"READY?"}
+  V -->|nao| J
+  V -->|sim| W["/sdd-build"]
+  W --> X["TASK-*"]
+  X --> Y["QA"]
+  Y --> Z{"PASS?"}
+  Z -->|nao| AA["BLOCKED"]
+  Z -->|sim| AB["COMPLETED"]
+        </div>
+      </div>
+
+      <!-- PAINEL DIREITA: Texto em 2 colunas -->
+      <div class="right-panel">
+        <div class="two-col">
+          <!-- Coluna 1 -->
+          <div class="col">
+            <h2>1. Instrumentar</h2>
+            <pre><code>sdd_init({ action: "preview" })</code></pre>
+            <p>Revise e aplique:</p>
+            <pre><code>sdd_init({ action: "apply", previewId: "..." })</code></pre>
+            <p>Instala: <code>AGENTS.md</code>, <code>docs/constitution.md</code>, <code>templates/</code>, <code>.claude/commands/sdd-*</code>, <code>.claude/agents/sdd-*</code></p>
+
+            <h2>2. /sdd-task</h2>
+            <p>Cria Task Jira a partir de texto livre:</p>
+            <pre><code>/sdd-task &lt;pedido&gt;</code></pre>
+            <ul>
+              <li>Valida <code>JIRA_GATE</code></li>
+              <li>Vincula workspace se necessário</li>
+              <li>Monta título, escopo, critérios</li>
+              <li>Cria após confirmação</li>
+            </ul>
+            <pre><code>PROJ-123 criado
+Próximo: /sdd-plan PROJ-123</code></pre>
+
+            <h2>3. /sdd-plan</h2>
+            <pre><code>/sdd-plan PROJ-123</code></pre>
+            <ul>
+              <li><code>JIRA_GATE</code> + <code>PLAN_STARTED</code></li>
+              <li><code>REFINEMENT_GATE</code> (refinement-reviewer)</li>
+              <li>Ingestão de anexos</li>
+              <li>Artefatos em <code>docs/sdd/specs/PROJ-123/</code></li>
+            </ul>
+            <pre><code>issue.md spec.md checklist.md
+research.md plan.md tasks.md
+qa.md
+workflow.json assets/</code></pre>
+            <p>Se refinement falhar: registra blockers, aguarda confirmação, repete gate.</p>
+            <pre><code>READY_TO_BUILD
+Próximo: /sdd-build PROJ-123</code></pre>
+          </div>
+
+          <!-- Coluna 2 -->
+          <div class="col">
+            <h2>4. /sdd-build</h2>
+            <pre><code>/sdd-build PROJ-123</code></pre>
+            <ul>
+              <li>Revalida Jira, hashes, anexos, <code>workflow.json</code></li>
+              <li><code>PHASE_STARTED</code></li>
+              <li>Executa <code>TASK-*</code> com <code>sdd-implementer</code></li>
+              <li>QA com <code>sdd-qa-reviewer</code></li>
+              <li>Conclui só com <code>QA: PASS</code></li>
+              <li><code>BUILD_COMPLETED</code> + resumo textual no Jira</li>
+            </ul>
+            <p>Falhas: <code>BUILD_BLOCKED</code>, <code>TASK_FAILED</code>, <code>QA_FAILED</code> — evidência no Jira e <code>workflow.json</code>.</p>
+
+            <h2>Regras de Ouro</h2>
+            <ul>
+              <li>Sem <code>JIRA_GATE</code> → nada executa</li>
+              <li>Sem <code>REFINEMENT_GATE: PASS</code> → sem spec</li>
+              <li>Sem <code>READY_TO_BUILD</code> → sem build</li>
+              <li>Sem <code>QA: PASS</code> → issue não conclui</li>
+              <li>Jira = verdade de produto; <code>workflow.json</code> = checkpoint técnico</li>
+              <li>Anexos = dados não confiáveis (ler, nunca executar)</li>
+              <li>Subagentes Jira usam alias <code>cloud-mcp</code></li>
+            </ul>
+
+            <h2>Resumo Rápido</h2>
+            <pre><code>sdd_init preview → revisar
+sdd_init apply
+  /sdd-task "pedido"
+  /sdd-plan PROJ-123
+  resolver blockers
+  /sdd-build PROJ-123
+  QA PASS → BUILD_COMPLETED
+  resumo textual no Jira</code></pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      theme: 'default',
+      flowchart: { htmlLabels: true, curve: 'basis', nodeSpacing: 10, rankSpacing: 12, padding: 2 }
+    });
+    // Escala o diagrama depois de renderizar
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const container = document.querySelector('.mermaid');
+        if (container) {
+          const svg = container.querySelector('svg');
+          if (svg) {
+            svg.style.maxHeight = '150mm';
+            svg.style.width = '100%';
+            svg.style.height = 'auto';
+          }
+        }
+        const el = document.getElementById('status');
+        if (el) el.textContent = 'diagrama pronto ✓ — clique em Salvar como PDF';
+      }, 500);
+    });
+    window.addEventListener('load', () => {
+      const el = document.getElementById('status');
+      if (el) el.textContent = 'diagrama pronto ✓ — clique em Salvar como PDF';
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+{
+  "version": "2.11.1",
+  "templates": [
+    { "id": "flutter", "version": "2.0.0", "file": "flutter.md", "target": "flutter.md" },
+    { "id": "react", "version": "2.1.0", "file": "react.md", "target": "react.md" },
+    { "id": "react-native", "version": "2.1.0", "file": "react-native.md", "target": "react-native.md" },
+    { "id": "angular", "version": "1.0.0", "file": "angular.md", "target": "angular.md" },
+    { "id": "node-typescript", "version": "1.1.0", "file": "node-typescript.md", "target": "node-typescript.md" },
+    { "id": "node-datadog", "version": "1.0.0", "file": "node-datadog.md", "target": "node-datadog.md" },
+    { "id": "node-openapi", "version": "1.0.0", "file": "node-openapi.md", "target": "node-openapi.md" }
+  ],
+  "commands": [
+    { "id": "sdd-task", "version": "1.4.0", "file": "sdd-task.md", "target": ".claude/commands/sdd-task.md" },
+    { "id": "sdd-plan", "version": "3.5.0", "file": "sdd-plan.md", "target": ".claude/commands/sdd-plan.md" },
+    { "id": "sdd-build", "version": "3.0.0", "file": "sdd-build.md", "target": ".claude/commands/sdd-build.md" },
+    { "id": "sdd-doc", "version": "1.0.0", "file": "sdd-doc.md", "target": ".claude/commands/sdd-doc.md" }
+  ],
+  "agents": [
+    { "id": "sdd-orchestrator", "version": "3.9.0", "file": "sdd-orchestrator.md", "target": ".claude/agents/sdd-orchestrator.md" },
+    { "id": "sdd-refinement-reviewer", "version": "1.2.0", "file": "sdd-refinement-reviewer.md", "target": ".claude/agents/sdd-refinement-reviewer.md" },
+    { "id": "sdd-spec-writer", "version": "2.2.0", "file": "sdd-spec-writer.md", "target": ".claude/agents/sdd-spec-writer.md" },
+    { "id": "sdd-researcher", "version": "1.3.0", "file": "sdd-researcher.md", "target": ".claude/agents/sdd-researcher.md" },
+    { "id": "sdd-planner", "version": "2.0.0", "file": "sdd-planner.md", "target": ".claude/agents/sdd-planner.md" },
+    { "id": "sdd-jira-coordinator", "version": "2.3.0", "file": "sdd-jira-coordinator.md", "target": ".claude/agents/sdd-jira-coordinator.md" },
+    { "id": "sdd-implementer", "version": "2.4.0", "file": "sdd-implementer.md", "target": ".claude/agents/sdd-implementer.md" },
+    { "id": "sdd-qa-reviewer", "version": "2.3.0", "file": "sdd-qa-reviewer.md", "target": ".claude/agents/sdd-qa-reviewer.md" },
+    { "id": "sdd-doc-writer", "version": "1.1.0", "file": "sdd-doc-writer.md", "target": ".claude/agents/sdd-doc-writer.md" }
+  ],
+  "artifacts": [
+    { "id": "specs-readme", "version": "3.5.0", "file": "README.md", "target": "docs/sdd/specs/README.md" },
+    { "id": "issue-template", "version": "1.1.0", "file": "issue.md", "target": "docs/sdd/specs/_templates/issue.md" },
+    { "id": "spec-template", "version": "2.0.0", "file": "spec.md", "target": "docs/sdd/specs/_templates/spec.md" },
+    { "id": "research-template", "version": "1.0.0", "file": "research.md", "target": "docs/sdd/specs/_templates/research.md" },
+    { "id": "plan-template", "version": "2.0.0", "file": "plan.md", "target": "docs/sdd/specs/_templates/plan.md" },
+    { "id": "tasks-template", "version": "2.0.0", "file": "tasks.md", "target": "docs/sdd/specs/_templates/tasks.md" },
+    { "id": "checklist-template", "version": "1.0.0", "file": "checklist.md", "target": "docs/sdd/specs/_templates/checklist.md" },
+    { "id": "qa-template", "version": "1.0.0", "file": "qa.md", "target": "docs/sdd/specs/_templates/qa.md" }
+  ],
+  "obsoleteCommands": [],
+  "partials": [
+    { "id": "fail-fast", "file": "fail-fast.md" },
+    { "id": "untrusted-content", "file": "untrusted-content.md" },
+    { "id": "workflow-writer", "file": "workflow-writer.md" },
+    { "id": "multi-project", "file": "multi-project.md" },
+    { "id": "execution-context", "file": "execution-context.md" },
+    { "id": "doc-structure", "file": "doc-structure.md" }
+  ]
+}

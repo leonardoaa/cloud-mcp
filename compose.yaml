@@ -1,0 +1,45 @@
+name: cloud-jira-mcp
+
+services:
+  jira-mcp:
+    image: cloud/jira-mcp:local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: 37242
+      JIRA_DB_PATH: /app/data/jira-mcp.sqlite
+      MCP_WORKSPACES_HOST_ROOT: "${MCP_WORKSPACES_HOST_ROOT:-/Volumes/External HD/Projetos}"
+      MCP_WORKSPACES_CONTAINER_ROOT: /workspaces
+      HOST_RUNNER_URL: "${HOST_RUNNER_URL:-http://host.docker.internal:37243}"
+    ports:
+      - "127.0.0.1:${MCP_DOCKER_PORT:-37242}:37242"
+    volumes:
+      - jira_mcp_data:/app/data
+      - type: bind
+        source: "${MCP_WORKSPACES_HOST_ROOT:-/Volumes/External HD/Projetos}"
+        target: /workspaces
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - fetch('http://127.0.0.1:37242/health/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))
+      interval: 10s
+      timeout: 3s
+      start_period: 10s
+      retries: 6
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+volumes:
+  jira_mcp_data:
+    name: cloud-jira-mcp-data
