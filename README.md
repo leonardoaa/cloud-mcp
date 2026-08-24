@@ -201,34 +201,3 @@ O banco fica no volume `cloud-jira-mcp-data`. `docker-down.sh` nao remove esse
 volume. Para usar outra porta no Mac, configure `MCP_DOCKER_PORT` no `.env`; o
 servico continua ouvindo na porta `37242` dentro do container.
 
-## Host runner para SDD Kanban
-
-Quando o MCP roda em Docker, o terminal embutido do SDD Kanban nao acessa
-automaticamente os binarios instalados no macOS. Para executar `claude` ou
-`ollama` no terminal do host, mantenha o host runner aberto em outro terminal:
-
-```bash
-./scripts/host-runner.sh
-```
-
-O script publica o runner em `0.0.0.0:37243` para que o Docker consiga acessa-lo
-por `http://host.docker.internal:37243`. Ele usa o mesmo
-`MCP_SERVER_BEARER_TOKEN` do `.env`, valida o workspace contra
-`HOST_RUNNER_WORKSPACES_ROOT` ou `MCP_WORKSPACES_HOST_ROOT`, abre a PTY no path
-real do Mac e recebe somente perfis Claude cadastrados.
-
-Para manter o runner sempre ativo no macOS, instale o Launch Agent:
-
-```bash
-./scripts/install-host-runner-launch-agent.sh
-```
-
-Ele sobe no login do usuario e reinicia automaticamente se cair. Os logs ficam
-em `~/Library/Logs/cloud-mcp/host-runner.out.log` e
-`~/Library/Logs/cloud-mcp/host-runner.err.log`. O instalador copia um
-runtime local para `~/Library/Application Support/cloud-mcp-host-runner`
-para que o `launchd` nao dependa do volume externo ao iniciar. Para remover:
-
-```bash
-./scripts/uninstall-host-runner-launch-agent.sh
-```

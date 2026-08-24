@@ -13,9 +13,8 @@ import { createMcpServer } from "./mcp.js";
 import type { CallLogRepository } from "./repositories.js";
 import type { ConfluenceService, IssueService, JiraProfileService, WorkspaceService } from "./services.js";
 import type { SddInstrumentationService } from "./sdd-service.js";
-import type { SddKanbanService } from "./sdd-kanban.js";
 
-type RuntimeServices = { profiles: JiraProfileService; workspaces: WorkspaceService; issues: IssueService; confluence: ConfluenceService; sdd: SddInstrumentationService; sddKanban: SddKanbanService; callLogs: CallLogRepository };
+type RuntimeServices = { profiles: JiraProfileService; workspaces: WorkspaceService; issues: IssueService; confluence: ConfluenceService; sdd: SddInstrumentationService; callLogs: CallLogRepository };
 
 export function createHttpServer(config: AppConfig, services: RuntimeServices) {
   const logger = pino({ level: process.env.LOG_LEVEL ?? "info", redact: ["req.headers.authorization", "req.headers.cookie", "apiToken", "token"] });

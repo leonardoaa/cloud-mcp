@@ -16,7 +16,6 @@ services:
       JIRA_DB_PATH: /app/data/jira-mcp.sqlite
       MCP_WORKSPACES_HOST_ROOT: "${MCP_WORKSPACES_HOST_ROOT:-/Volumes/External HD/Projetos}"
       MCP_WORKSPACES_CONTAINER_ROOT: /workspaces
-      HOST_RUNNER_URL: "${HOST_RUNNER_URL:-http://host.docker.internal:37243}"
     ports:
       - "127.0.0.1:${MCP_DOCKER_PORT:-37242}:37242"
     volumes:

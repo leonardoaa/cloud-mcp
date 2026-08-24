@@ -91,43 +91,5 @@ function migrate(db: SqliteDatabase) {
       created_at TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_sdd_previews_expiry ON sdd_previews (expires_at);
-
-    CREATE TABLE IF NOT EXISTS sdd_cards (
-      id TEXT PRIMARY KEY,
-      workspace_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      request_text TEXT NOT NULL,
-      column_key TEXT NOT NULL CHECK (column_key IN ('sdd-task', 'planning', 'sdd-build', 'blocked', 'done')),
-      status TEXT NOT NULL CHECK (status IN ('idle', 'running', 'blocked', 'done')),
-      jira_issue_key TEXT,
-      runner_profile_id TEXT NOT NULL,
-      created_at TEXT NOT NULL,
-      updated_at TEXT NOT NULL,
-      FOREIGN KEY (workspace_id) REFERENCES workspace_bindings(workspace_id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_sdd_cards_workspace_column
-      ON sdd_cards (workspace_id, column_key, updated_at DESC);
-
-    CREATE TABLE IF NOT EXISTS sdd_terminal_sessions (
-      id TEXT PRIMARY KEY,
-      card_id TEXT NOT NULL,
-      workspace_id TEXT NOT NULL,
-      command_kind TEXT NOT NULL CHECK (command_kind IN ('sdd-task', 'sdd-plan', 'sdd-build')),
-      command_text TEXT NOT NULL,
-      runner_profile_id TEXT NOT NULL,
-      runner_label TEXT NOT NULL,
-      command_executable TEXT NOT NULL,
-      args_json TEXT NOT NULL,
-      status TEXT NOT NULL CHECK (status IN ('running', 'completed', 'failed', 'stopped')),
-      started_at TEXT NOT NULL,
-      finished_at TEXT,
-      exit_code INTEGER,
-      log_tail TEXT NOT NULL DEFAULT '',
-      FOREIGN KEY (card_id) REFERENCES sdd_cards(id) ON DELETE CASCADE,
-      FOREIGN KEY (workspace_id) REFERENCES workspace_bindings(workspace_id) ON DELETE CASCADE
-    );
-    CREATE INDEX IF NOT EXISTS idx_sdd_terminal_sessions_card_started
-      ON sdd_terminal_sessions (card_id, started_at DESC);
-
   `);
 }

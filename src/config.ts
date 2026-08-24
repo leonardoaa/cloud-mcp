@@ -38,8 +38,6 @@ const envSchema = z.object({
   JIRA_ATTACHMENT_MAX_BYTES: z.coerce.number().int().positive().default(10_485_760),
   MCP_WORKSPACES_HOST_ROOT: z.string().optional(),
   MCP_WORKSPACES_CONTAINER_ROOT: z.string().optional(),
-  HOST_RUNNER_URL: z.string().url().optional(),
-  HOST_RUNNER_TOKEN: z.string().optional(),
   SDD_CATALOG_PATH: z.string().default("./resources/sdd"),
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
 });
@@ -78,8 +76,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env) {
     attachmentMaxBytes: parsed.JIRA_ATTACHMENT_MAX_BYTES,
     workspacesHostRoot: resolve(parsed.MCP_WORKSPACES_HOST_ROOT ?? ".."),
     workspacesServerRoot: resolve(parsed.MCP_WORKSPACES_CONTAINER_ROOT ?? parsed.MCP_WORKSPACES_HOST_ROOT ?? ".."),
-    hostRunnerUrl: parsed.HOST_RUNNER_URL?.replace(/\/+$/, ""),
-    hostRunnerToken: parsed.HOST_RUNNER_TOKEN ?? parsed.MCP_SERVER_BEARER_TOKEN,
     sddCatalogPath: resolve(parsed.SDD_CATALOG_PATH),
     nodeEnv: parsed.NODE_ENV,
   };

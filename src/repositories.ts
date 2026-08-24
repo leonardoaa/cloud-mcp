@@ -3,7 +3,7 @@ import { realpathSync } from "node:fs";
 import { basename, resolve } from "node:path";
 import type { BootstrapProfile } from "./config.js";
 import type { SqliteDatabase } from "./database.js";
-import type { JiraProfile, McpCallLog, SddCard, SddCardColumn, SddCommandKind, SddRunnerProfile, SddTerminalSession, SddTerminalStatus, WorkspaceBinding } from "./domain.js";
+import type { JiraProfile, McpCallLog, WorkspaceBinding } from "./domain.js";
 import { AppError } from "./domain.js";
 
 type ProfileRow = {
@@ -164,119 +164,6 @@ export class WorkspaceBindingRepository {
   }
 }
 
-export class SddCardRepository {
-  constructor(private readonly db: SqliteDatabase) {}
-
-  create(input: {
-    workspaceId: string;
-    title: string;
-    requestText: string;
-    runnerProfileId: SddRunnerProfile["id"];
-    jiraIssueKey?: string;
-  }): SddCard {
-    const now = new Date().toISOString();
-    const id = randomUUID();
-    this.db.prepare(`
-      INSERT INTO sdd_cards (
-        id, workspace_id, title, request_text, column_key, status,
-        jira_issue_key, runner_profile_id, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, 'sdd-task', 'idle', ?, ?, ?, ?)
-    `).run(id, input.workspaceId, input.title, input.requestText, input.jiraIssueKey ?? null, input.runnerProfileId, now, now);
-    return this.get(id)!;
-  }
-
-  get(id: string): SddCard | undefined {
-    const row = this.db.prepare("SELECT * FROM sdd_cards WHERE id = ?").get(id) as SddCardRow | undefined;
-    return row ? mapSddCard(row) : undefined;
-  }
-
-  list(workspaceId: string): SddCard[] {
-    return (this.db.prepare("SELECT * FROM sdd_cards WHERE workspace_id = ? ORDER BY updated_at DESC").all(workspaceId) as SddCardRow[]).map(mapSddCard);
-  }
-
-  update(id: string, patch: Partial<Pick<SddCard, "title" | "requestText" | "column" | "status" | "jiraIssueKey" | "runnerProfileId">>): SddCard {
-    const current = this.get(id);
-    if (!current) throw new AppError("SDD_CARD_NOT_FOUND", "SDD card not found", 404);
-    const next = { ...current, ...patch, updatedAt: new Date().toISOString() };
-    this.db.prepare(`
-      UPDATE sdd_cards SET title = ?, request_text = ?, column_key = ?, status = ?,
-        jira_issue_key = ?, runner_profile_id = ?, updated_at = ? WHERE id = ?
-    `).run(
-      next.title,
-      next.requestText,
-      next.column,
-      next.status,
-      next.jiraIssueKey ?? null,
-      next.runnerProfileId,
-      next.updatedAt,
-      id,
-    );
-    return this.get(id)!;
-  }
-
-  remove(id: string): boolean {
-    return this.db.prepare("DELETE FROM sdd_cards WHERE id = ?").run(id).changes > 0;
-  }
-}
-
-export class SddTerminalSessionRepository {
-  constructor(private readonly db: SqliteDatabase) {}
-
-  create(input: {
-    cardId: string;
-    workspaceId: string;
-    commandKind: SddCommandKind;
-    commandText: string;
-    runnerProfile: SddRunnerProfile;
-  }): SddTerminalSession {
-    const id = randomUUID();
-    const startedAt = new Date().toISOString();
-    this.db.prepare(`
-      INSERT INTO sdd_terminal_sessions (
-        id, card_id, workspace_id, command_kind, command_text, runner_profile_id,
-        runner_label, command_executable, args_json, status, started_at, log_tail
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, '')
-    `).run(
-      id,
-      input.cardId,
-      input.workspaceId,
-      input.commandKind,
-      input.commandText,
-      input.runnerProfile.id,
-      input.runnerProfile.label,
-      input.runnerProfile.command,
-      JSON.stringify(input.runnerProfile.args),
-      startedAt,
-    );
-    return this.get(id)!;
-  }
-
-  get(id: string): SddTerminalSession | undefined {
-    const row = this.db.prepare("SELECT * FROM sdd_terminal_sessions WHERE id = ?").get(id) as SddTerminalSessionRow | undefined;
-    return row ? mapSddSession(row) : undefined;
-  }
-
-  listByCard(cardId: string): SddTerminalSession[] {
-    return (this.db.prepare("SELECT * FROM sdd_terminal_sessions WHERE card_id = ? ORDER BY started_at DESC").all(cardId) as SddTerminalSessionRow[]).map(mapSddSession);
-  }
-
-  hasActiveForCard(cardId: string) {
-    return Boolean(this.db.prepare("SELECT 1 FROM sdd_terminal_sessions WHERE card_id = ? AND status = 'running' LIMIT 1").get(cardId));
-  }
-
-  appendLog(id: string, chunk: string) {
-    const current = this.get(id);
-    if (!current) return;
-    const next = tail(`${current.logTail}${sanitizeTerminalLog(chunk)}`, 30_000);
-    this.db.prepare("UPDATE sdd_terminal_sessions SET log_tail = ? WHERE id = ?").run(next, id);
-  }
-
-  finish(id: string, status: Exclude<SddTerminalStatus, "running">, exitCode?: number) {
-    this.db.prepare("UPDATE sdd_terminal_sessions SET status = ?, finished_at = ?, exit_code = ? WHERE id = ?")
-      .run(status, new Date().toISOString(), exitCode ?? null, id);
-  }
-}
-
 export class CallLogRepository {
   private listeners = new Set<(log: McpCallLog) => void>();
 
@@ -369,80 +256,6 @@ function mapProfile(row: ProfileRow): JiraProfile {
 type BindingRow = { workspace_id: string; canonical_path: string; workspace_name: string | null; jira_profile_id: string; jira_project_key: string; created_at: string; updated_at: string; last_used_at: string };
 function mapBinding(row: BindingRow): WorkspaceBinding {
   return { workspaceId: row.workspace_id, canonicalPath: row.canonical_path, workspaceName: row.workspace_name ?? undefined, jiraProfileId: row.jira_profile_id, jiraProjectKey: row.jira_project_key, createdAt: row.created_at, updatedAt: row.updated_at, lastUsedAt: row.last_used_at };
-}
-
-type SddCardRow = {
-  id: string;
-  workspace_id: string;
-  title: string;
-  request_text: string;
-  column_key: SddCardColumn;
-  status: SddCard["status"];
-  jira_issue_key: string | null;
-  runner_profile_id: SddRunnerProfile["id"];
-  created_at: string;
-  updated_at: string;
-};
-function mapSddCard(row: SddCardRow): SddCard {
-  return {
-    id: row.id,
-    workspaceId: row.workspace_id,
-    title: row.title,
-    requestText: row.request_text,
-    column: row.column_key,
-    status: row.status,
-    jiraIssueKey: row.jira_issue_key ?? undefined,
-    runnerProfileId: row.runner_profile_id,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
-
-type SddTerminalSessionRow = {
-  id: string;
-  card_id: string;
-  workspace_id: string;
-  command_kind: SddCommandKind;
-  command_text: string;
-  runner_profile_id: SddRunnerProfile["id"];
-  runner_label: string;
-  command_executable: string;
-  args_json: string;
-  status: SddTerminalStatus;
-  started_at: string;
-  finished_at: string | null;
-  exit_code: number | null;
-  log_tail: string;
-};
-function mapSddSession(row: SddTerminalSessionRow): SddTerminalSession {
-  return {
-    id: row.id,
-    cardId: row.card_id,
-    workspaceId: row.workspace_id,
-    commandKind: row.command_kind,
-    commandText: row.command_text,
-    runnerProfileId: row.runner_profile_id,
-    runnerLabel: row.runner_label,
-    commandExecutable: row.command_executable,
-    args: JSON.parse(row.args_json),
-    status: row.status,
-    startedAt: row.started_at,
-    finishedAt: row.finished_at ?? undefined,
-    exitCode: row.exit_code ?? undefined,
-    logTail: row.log_tail,
-  };
-}
-
-function sanitizeTerminalLog(value: string) {
-  return value
-    .replace(/(authorization:\s*bearer\s+)[^\s\r\n]+/gi, "$1[redacted]")
-    .replace(/(api[_-]?token["'=:\s]+)[^\s"',\r\n]+/gi, "$1[redacted]")
-    .replace(/(cookie:\s*)[^\r\n]+/gi, "$1[redacted]")
-    .replace(/(sk-[A-Za-z0-9_-]{12,})/g, "[redacted-token]");
-}
-
-function tail(value: string, maxLength: number) {
-  return value.length > maxLength ? value.slice(value.length - maxLength) : value;
 }
 
 type CallLogRow = { id: string; request_id: string; received_at: string; completed_at: string | null; duration_ms: number | null; protocol_method: string; target_name: string | null; operation_kind: string; client_name: string | null; client_version: string | null; session_fingerprint: string | null; workspace_id: string | null; jira_profile_id: string | null; jira_project_key: string | null; issue_key: string | null; http_status: number | null; outcome: McpCallLog["outcome"]; error_code: string | null; safe_summary_json: string };

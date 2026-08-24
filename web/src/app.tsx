@@ -1,9 +1,7 @@
-import { Terminal } from "@xterm/xterm";
-import "@xterm/xterm/css/xterm.css";
-import { FormEvent, useEffect, useRef, useState } from "react";
-import { api, CallLog, JiraProfile, SddCard, SddCardColumn, SddCommandKind, SddRunnerProfile, SddTerminalSession, setCsrf, WorkspaceBinding } from "./api";
+import { FormEvent, useEffect, useState } from "react";
+import { api, CallLog, JiraProfile, setCsrf, WorkspaceBinding } from "./api";
 
-type Page = "jiras" | "workspaces" | "issues" | "sdd" | "logs";
+type Page = "jiras" | "workspaces" | "issues" | "logs";
 type AdminSession = { csrf: string; expiresAt: number };
 
 export function App() {
@@ -28,7 +26,6 @@ export function App() {
         <nav>
           <Nav active={page === "jiras"} onClick={() => setPage("jiras")} label="Jiras" />
           <Nav active={page === "workspaces"} onClick={() => setPage("workspaces")} label="Workspaces" />
-          <Nav active={page === "sdd"} onClick={() => setPage("sdd")} label="SDD Kanban" />
           <Nav active={page === "issues"} onClick={() => setPage("issues")} label="Issues" />
           <Nav active={page === "logs"} onClick={() => setPage("logs")} label="Logs MCP" />
           <Nav active={false} onClick={() => window.open("/api/admin/sdd-flow-print", "_blank", "noopener,noreferrer")} label="Fluxo SDD" />
@@ -39,272 +36,10 @@ export function App() {
         {page === "jiras" && <JirasPage />}
         {page === "workspaces" && <WorkspacesPage />}
         {page === "issues" && <IssuesPage />}
-        {page === "sdd" && <SddKanbanPage />}
         {page === "logs" && <LogsPage />}
       </main>
     </div>
   );
-}
-
-const sddColumns: Array<{ id: SddCardColumn; label: string }> = [
-  { id: "sdd-task", label: "SDD Task" },
-  { id: "planning", label: "Planejamento" },
-  { id: "sdd-build", label: "SDD Build" },
-  { id: "blocked", label: "Bloqueado" },
-  { id: "done", label: "Concluido" },
-];
-
-const terminalKeys: Array<{ label: string; value: string; title: string; danger?: boolean }> = [
-  { label: "↑", value: "\x1b[A", title: "Seta para cima" },
-  { label: "↓", value: "\x1b[B", title: "Seta para baixo" },
-  { label: "←", value: "\x1b[D", title: "Seta para esquerda" },
-  { label: "→", value: "\x1b[C", title: "Seta para direita" },
-  { label: "Enter", value: "\r", title: "Selecionar / confirmar" },
-  { label: "Tab", value: "\t", title: "Alternar foco/opcao" },
-  { label: "Esc", value: "\x1b", title: "Cancelar / voltar" },
-  { label: "Espaco", value: " ", title: "Marcar opcao" },
-  { label: "Ctrl+C", value: "\x03", title: "Interromper processo", danger: true },
-];
-
-function SddKanbanPage() {
-  const [workspaces, setWorkspaces] = useState<WorkspaceBinding[]>([]);
-  const [profiles, setProfiles] = useState<SddRunnerProfile[]>([]);
-  const [workspaceId, setWorkspaceId] = useState("");
-  const [cards, setCards] = useState<SddCard[]>([]);
-  const [activeColumn, setActiveColumn] = useState<SddCardColumn>("sdd-task");
-  const [expanded, setExpanded] = useState<string>();
-  const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
-  const [form, setForm] = useState({ title: "", requestText: "", runnerProfileId: "claude-default" as SddRunnerProfile["id"] });
-
-  useEffect(() => {
-    Promise.all([api<WorkspaceBinding[]>("/workspace-bindings"), api<SddRunnerProfile[]>("/sdd/runner-profiles")])
-      .then(([workspaceItems, runnerItems]) => {
-        setWorkspaces(workspaceItems);
-        setProfiles(runnerItems);
-        setWorkspaceId((current) => current || workspaceItems[0]?.workspaceId || "");
-      })
-      .catch((e) => setError(message(e)));
-  }, []);
-
-  const loadCards = () => {
-    if (!workspaceId) { setCards([]); return Promise.resolve(); }
-    return api<SddCard[]>(`/sdd/cards?workspaceId=${encodeURIComponent(workspaceId)}`).then(setCards).catch((e) => setError(message(e)));
-  };
-  useEffect(() => { void loadCards(); }, [workspaceId]);
-
-  async function create(e: FormEvent) {
-    e.preventDefault(); setError(""); setNotice("");
-    try {
-      const card = await api<SddCard>("/sdd/cards", { method: "POST", body: JSON.stringify({ workspaceId, ...form }) });
-      setForm({ title: "", requestText: "", runnerProfileId: "claude-default" });
-      setExpanded(card.id);
-      await loadCards();
-    } catch (reason) { setError(message(reason)); }
-  }
-
-  async function patchCard(card: SddCard, patch: Partial<Pick<SddCard, "title" | "requestText" | "jiraIssueKey" | "runnerProfileId">>) {
-    setError(""); setNotice("");
-    try {
-      await api(`/sdd/cards/${card.id}`, { method: "PATCH", body: JSON.stringify(patch) });
-      await loadCards();
-    } catch (reason) { setError(message(reason)); }
-  }
-
-  async function move(card: SddCard, column: SddCardColumn) {
-    setError(""); setNotice("");
-    try {
-      const moved = await api<SddCard>(`/sdd/cards/${card.id}/move`, { method: "POST", body: JSON.stringify({ column }) });
-      setExpanded(card.id);
-      setActiveColumn(column);
-      await loadCards();
-      if (column === "planning" || column === "sdd-build") setNotice(`${moved.title}: pronto para iniciar ${column === "planning" ? "/sdd-plan" : "/sdd-build"}.`);
-    } catch (reason) { setError(message(reason)); }
-  }
-
-  async function start(card: SddCard, commandKind?: SddCommandKind) {
-    const profile = profiles.find((item) => item.id === card.runnerProfileId);
-    if (profile?.requiresStrongConfirmation && !confirm(`Iniciar ${profile.label} com permissões elevadas neste card?`)) return;
-    setError(""); setNotice("");
-    try {
-      await api<SddTerminalSession>(`/sdd/cards/${card.id}/sessions`, { method: "POST", body: JSON.stringify({ commandKind, confirmedDanger: Boolean(profile?.requiresStrongConfirmation) }) });
-      setExpanded(card.id);
-      await loadCards();
-    } catch (reason) { setError(message(reason)); }
-  }
-
-  const selectedWorkspace = workspaces.find((item) => item.workspaceId === workspaceId);
-  return (
-    <>
-      <Header eyebrow="SDD" title="Kanban SDD" subtitle="Cards locais com terminal Claude interativo no workspace vinculado." action={<select value={workspaceId} onChange={(e) => setWorkspaceId(e.target.value)}>{workspaces.map((item) => <option key={item.workspaceId} value={item.workspaceId}>{item.workspaceName ?? item.canonicalPath}</option>)}</select>} />
-      {error && <div className="alert error">{error}</div>}
-      {notice && <div className="alert">{notice}</div>}
-      <div className="alert sdd-runtime-note">
-        Com Docker, mantenha o host runner ativo no Mac. Use `./scripts/install-host-runner-launch-agent.sh` para iniciar automaticamente no login.
-      </div>
-      {!workspaces.length && <Empty text="Nenhum workspace vinculado." />}
-      {selectedWorkspace && <div className="workspace-note"><strong>{selectedWorkspace.workspaceName}</strong><span>{selectedWorkspace.canonicalPath}</span></div>}
-      {workspaceId && <form className="panel sdd-create" onSubmit={create}>
-        <label>Título<input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required /></label>
-        <label>Perfil<select value={form.runnerProfileId} onChange={(e) => setForm({ ...form, runnerProfileId: e.target.value as SddRunnerProfile["id"] })}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}</option>)}</select></label>
-        <label className="wide">Demanda<textarea value={form.requestText} onChange={(e) => setForm({ ...form, requestText: e.target.value })} placeholder="Descreva a tarefa para o /sdd-task" /></label>
-        <button className="primary">Criar card</button>
-      </form>}
-      <div className="sdd-tabs">{sddColumns.map((column) => <button key={column.id} className={activeColumn === column.id ? "active" : ""} onClick={() => setActiveColumn(column.id)}>{column.label}<span>{cards.filter((card) => card.column === column.id).length}</span></button>)}</div>
-      <section className="sdd-board">
-        {sddColumns.map((column) => <div className={`sdd-column ${activeColumn === column.id ? "mobile-active" : ""}`} key={column.id}>
-          <div className="sdd-column-head"><h2>{column.label}</h2><span>{cards.filter((card) => card.column === column.id).length}</span></div>
-          <div className="sdd-card-list">
-            {cards.filter((card) => card.column === column.id).map((card) => <SddCardView key={card.id} card={card} profiles={profiles} expanded={expanded === card.id} onExpand={() => setExpanded(expanded === card.id ? undefined : card.id)} onPatch={patchCard} onMove={move} onStart={start} onRefresh={loadCards} />)}
-            {!cards.some((card) => card.column === column.id) && <div className="sdd-empty">Sem cards.</div>}
-          </div>
-        </div>)}
-      </section>
-    </>
-  );
-}
-
-function SddCardView({ card, profiles, expanded, onExpand, onPatch, onMove, onStart, onRefresh }: {
-  card: SddCard;
-  profiles: SddRunnerProfile[];
-  expanded: boolean;
-  onExpand: () => void;
-  onPatch: (card: SddCard, patch: Partial<Pick<SddCard, "title" | "requestText" | "jiraIssueKey" | "runnerProfileId">>) => Promise<void>;
-  onMove: (card: SddCard, column: SddCardColumn) => Promise<void>;
-  onStart: (card: SddCard, commandKind?: SddCommandKind) => Promise<void>;
-  onRefresh: () => Promise<void>;
-}) {
-  const latest = card.sessions?.[0];
-  const commandKind = card.column === "planning" ? "sdd-plan" : card.column === "sdd-build" ? "sdd-build" : "sdd-task";
-  const [draft, setDraft] = useState({ title: card.title, requestText: card.requestText, jiraIssueKey: card.jiraIssueKey ?? "", runnerProfileId: card.runnerProfileId });
-  useEffect(() => setDraft({ title: card.title, requestText: card.requestText, jiraIssueKey: card.jiraIssueKey ?? "", runnerProfileId: card.runnerProfileId }), [card.id, card.title, card.requestText, card.jiraIssueKey, card.runnerProfileId]);
-  const saveDraft = () => void onPatch(card, {
-    title: draft.title,
-    requestText: draft.requestText,
-    jiraIssueKey: draft.jiraIssueKey,
-    runnerProfileId: draft.runnerProfileId,
-  });
-  return <article className={`sdd-card ${expanded ? "expanded" : ""}`}>
-    <button className="sdd-card-summary" onClick={onExpand}>
-      <span className={`badge ${card.status === "running" ? "running" : card.status === "blocked" ? "error" : card.status === "done" ? "success" : "muted"}`}>{card.status}</span>
-      <strong>{card.title}</strong>
-      {card.jiraIssueKey && <code>{card.jiraIssueKey}</code>}
-    </button>
-    {expanded && <div className="sdd-card-body">
-      <label>Título<input value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} onBlur={saveDraft} /></label>
-      <label>Issue Jira<input value={draft.jiraIssueKey} onChange={(e) => setDraft({ ...draft, jiraIssueKey: e.target.value })} onBlur={saveDraft} placeholder="PROJ-123" /></label>
-      <label>Perfil Claude<select value={draft.runnerProfileId} onChange={(e) => { const runnerProfileId = e.target.value as SddRunnerProfile["id"]; setDraft({ ...draft, runnerProfileId }); void onPatch(card, { runnerProfileId }); }}>{profiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.label}{profile.requiresStrongConfirmation ? " (confirmação)" : ""}</option>)}</select></label>
-      <label className="wide">Demanda<textarea value={draft.requestText} onChange={(e) => setDraft({ ...draft, requestText: e.target.value })} onBlur={saveDraft} /></label>
-      <div className="sdd-actions">
-        <button className="primary" onClick={() => void onStart(card, commandKind)} disabled={card.status === "running"}>Iniciar {commandLabel(commandKind)}</button>
-        {card.column !== "sdd-task" && <button onClick={() => void onMove(card, "sdd-task")}>Mover para SDD Task</button>}
-        {card.column !== "planning" && <button onClick={() => void onMove(card, "planning")}>Mover para Planejamento</button>}
-        {card.column !== "sdd-build" && <button onClick={() => void onMove(card, "sdd-build")}>Mover para SDD Build</button>}
-        {card.column !== "done" && <button onClick={() => void onMove(card, "done")}>Concluir</button>}
-        {card.column !== "blocked" && <button className="danger-link" onClick={() => void onMove(card, "blocked")}>Bloquear</button>}
-      </div>
-      {latest && <TerminalPanel session={latest} onRefresh={onRefresh} />}
-    </div>}
-  </article>;
-}
-
-function TerminalPanel({ session, onRefresh }: { session: SddTerminalSession; onRefresh: () => Promise<void> }) {
-  const terminalNode = useRef<HTMLDivElement>(null);
-  const terminal = useRef<Terminal | undefined>(undefined);
-  const [input, setInput] = useState("");
-  const sendTerminalData = (data: string) => api(`/sdd/sessions/${session.id}/input`, { method: "POST", body: JSON.stringify({ data }) });
-  useEffect(() => {
-    if (!terminalNode.current) return;
-    terminal.current?.dispose();
-    terminalNode.current.textContent = "";
-    const term = new Terminal({
-      allowProposedApi: false,
-      convertEol: true,
-      cursorBlink: session.status === "running",
-      cursorStyle: "bar",
-      fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace",
-      fontSize: window.matchMedia("(max-width: 850px)").matches ? 12 : 13,
-      lineHeight: 1.25,
-      rows: window.matchMedia("(max-width: 850px)").matches ? 32 : 24,
-      scrollback: 3000,
-      theme: {
-        background: "#05080d",
-        foreground: "#d8f7e7",
-        cursor: "#50e3c2",
-        selectionBackground: "#2b5f75",
-        black: "#111827",
-        red: "#ff8b98",
-        green: "#5ce4ad",
-        yellow: "#f5d766",
-        blue: "#6bb8ff",
-        magenta: "#d6a1ff",
-        cyan: "#50e3c2",
-        white: "#e8edf5",
-        brightBlack: "#748197",
-        brightRed: "#ffb3ba",
-        brightGreen: "#91ffd0",
-        brightYellow: "#ffe88a",
-        brightBlue: "#9ed1ff",
-        brightMagenta: "#e6c4ff",
-        brightCyan: "#98f5e2",
-        brightWhite: "#ffffff",
-      },
-    });
-    term.open(terminalNode.current);
-    terminal.current = term;
-
-    let source: EventSource | undefined;
-    let keyboardInput: { dispose(): void } | undefined;
-    if (session.status === "running") {
-      keyboardInput = term.onData((data) => {
-        void api(`/sdd/sessions/${session.id}/input`, { method: "POST", body: JSON.stringify({ data }) });
-      });
-      source = new EventSource(`/api/admin/sdd/sessions/${session.id}/stream`);
-      source.addEventListener("terminal", (event) => {
-        const payload = JSON.parse((event as MessageEvent).data) as { chunk: string };
-        term.write(payload.chunk);
-      });
-      source.onerror = () => void onRefresh();
-    } else {
-      term.write(session.logTail || "Aguardando saída do terminal...\r\n");
-    }
-
-    return () => {
-      keyboardInput?.dispose();
-      source?.close();
-      term.dispose();
-      if (terminal.current === term) terminal.current = undefined;
-    };
-  }, [onRefresh, session.id, session.logTail, session.status]);
-  async function send(e: FormEvent) {
-    e.preventDefault();
-    if (!input) return;
-    await sendTerminalData(`${input}\r`);
-    setInput("");
-  }
-  async function stop() {
-    if (!confirm("Parar esta sessão de terminal?")) return;
-    await api(`/sdd/sessions/${session.id}/stop`, { method: "POST" });
-    await onRefresh();
-  }
-  async function sendInitialCommand() {
-    await api(`/sdd/sessions/${session.id}/initial-command`, { method: "POST" });
-  }
-  async function sendKey(data: string) {
-    await sendTerminalData(data);
-    terminal.current?.focus();
-  }
-  return <div className="terminal-panel">
-    <div className="terminal-head">
-      <div><strong>{session.commandText}</strong><small>{session.runnerLabel} · {session.status}</small></div>
-      {session.status === "running" && <div className="terminal-tools"><button onClick={() => void sendInitialCommand()}>Forçar comando inicial</button><button className="danger-link" onClick={() => void stop()}>Parar</button></div>}
-    </div>
-    <div className="terminal-screen" ref={terminalNode} onClick={() => terminal.current?.focus()} />
-    <div className="terminal-keypad">
-      {terminalKeys.map((key) => <button key={key.label} type="button" className={key.danger ? "danger-link" : ""} title={key.title} aria-label={key.title} disabled={session.status !== "running"} onClick={() => void sendKey(key.value)}>{key.label}</button>)}
-    </div>
-    <form onSubmit={send} className="terminal-input"><input value={input} onChange={(e) => setInput(e.target.value)} placeholder="Digite uma resposta para o terminal" disabled={session.status !== "running"} /><button disabled={session.status !== "running"}>Enviar</button></form>
-  </div>;
 }
 
 function Login({ onLogin }: { onLogin: () => void }) {
@@ -436,4 +171,3 @@ function average(values: number[]) { return values.length ? Math.round(values.re
 function plainAdf(value: any) { return value?.content?.flatMap((p: any) => p.content ?? []).map((n: any) => n.text ?? "").join(" "); }
 function textAdf(value: string) { return { type: "doc", version: 1, content: [{ type: "paragraph", content: value ? [{ type: "text", text: value }] : [] }] }; }
 function formatBytes(value: number) { return value < 1024 ? `${value} B` : value < 1_048_576 ? `${Math.round(value / 1024)} KB` : `${(value / 1_048_576).toFixed(1)} MB`; }
-function commandLabel(value: SddCommandKind) { return value === "sdd-task" ? "/sdd-task" : value === "sdd-plan" ? "/sdd-plan" : "/sdd-build"; }

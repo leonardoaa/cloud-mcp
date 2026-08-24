@@ -2,9 +2,8 @@ import { loadConfig } from "./config.js";
 import { CredentialStore } from "./credentials.js";
 import { openDatabase } from "./database.js";
 import { createHttpServer } from "./http-server.js";
-import { CallLogRepository, JiraProfileRepository, SddCardRepository, SddTerminalSessionRepository, WorkspaceBindingRepository } from "./repositories.js";
+import { CallLogRepository, JiraProfileRepository, WorkspaceBindingRepository } from "./repositories.js";
 import { ConfluenceService, IssueService, JiraProfileService, WorkspaceService } from "./services.js";
-import { HostRunnerClient, SddKanbanService } from "./sdd-kanban.js";
 import { SddInstrumentationService, SddPreviewRepository, WorkspacePathMapper } from "./sdd-service.js";
 
 export function createApplication(env: NodeJS.ProcessEnv = process.env) {
@@ -20,27 +19,18 @@ export function createApplication(env: NodeJS.ProcessEnv = process.env) {
   const issues = new IssueService(profiles, workspaces);
   const confluence = new ConfluenceService(profiles, workspaces);
   const workspaceMapper = new WorkspacePathMapper(config.workspacesHostRoot, config.workspacesServerRoot);
-  const terminalRunner = config.hostRunnerUrl ? new HostRunnerClient(config.hostRunnerUrl, config.hostRunnerToken) : undefined;
-  const sddKanban = new SddKanbanService(
-    new SddCardRepository(db),
-    new SddTerminalSessionRepository(db),
-    bindingRepository,
-    issues,
-    terminalRunner,
-    (workspacePath) => config.hostRunnerUrl ? workspacePath : workspaceMapper.map(workspacePath).serverPath,
-  );
   const sdd = new SddInstrumentationService(
     config.sddCatalogPath,
     workspaceMapper,
     new SddPreviewRepository(db),
     (workspacePath) => workspaces.findOptional(workspacePath),
   );
-  const server = createHttpServer(config, { profiles, workspaces, issues, confluence, callLogs, sdd, sddKanban });
+  const server = createHttpServer(config, { profiles, workspaces, issues, confluence, callLogs, sdd });
   const retention = setInterval(() => callLogs.retain(config.callLogRetentionDays, config.callLogMaxRows), 24 * 60 * 60 * 1000);
   retention.unref();
   callLogs.retain(config.callLogRetentionDays, config.callLogMaxRows);
   return {
-    config, db, profiles, workspaces, issues, confluence, sdd, sddKanban, callLogs, server,
+    config, db, profiles, workspaces, issues, confluence, sdd, callLogs, server,
     close: async () => { clearInterval(retention); await server.close(); db.close(); },
   };
 }

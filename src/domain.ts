@@ -51,48 +51,6 @@ export type McpCallLog = {
   safeSummary: Record<string, unknown>;
 };
 
-export type SddCardColumn = "sdd-task" | "planning" | "sdd-build" | "blocked" | "done";
-export type SddTerminalStatus = "running" | "completed" | "failed" | "stopped";
-export type SddCommandKind = "sdd-task" | "sdd-plan" | "sdd-build";
-
-export type SddRunnerProfile = {
-  id: "claude-default" | "claude-admin" | "claude-ollama-kimi";
-  label: string;
-  command: string;
-  args: string[];
-  requiresStrongConfirmation: boolean;
-};
-
-export type SddCard = {
-  id: string;
-  workspaceId: string;
-  title: string;
-  requestText: string;
-  column: SddCardColumn;
-  status: "idle" | "running" | "blocked" | "done";
-  jiraIssueKey?: string;
-  runnerProfileId: SddRunnerProfile["id"];
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type SddTerminalSession = {
-  id: string;
-  cardId: string;
-  workspaceId: string;
-  commandKind: SddCommandKind;
-  commandText: string;
-  runnerProfileId: SddRunnerProfile["id"];
-  runnerLabel: string;
-  commandExecutable: string;
-  args: string[];
-  status: SddTerminalStatus;
-  startedAt: string;
-  finishedAt?: string;
-  exitCode?: number;
-  logTail: string;
-};
-
 export class AppError extends Error {
   constructor(
     public readonly code: string,
