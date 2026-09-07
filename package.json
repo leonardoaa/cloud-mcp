@@ -24,7 +24,7 @@
     "pino-http": "^10.5.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "sharp": "^0.34.5",
+    "sharp": "^0.35.4",
     "zod": "^3.25.76"
   },
   "devDependencies": {
@@ -40,5 +40,6 @@
     "typescript": "^5.9.2",
     "vite": "^7.1.4",
     "vitest": "^3.2.4"
-  }
+  },
+  "license": "MIT"
 }

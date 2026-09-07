@@ -74,6 +74,12 @@ describe("HTTP application", () => {
     expect(mcpPayload(tools).result.tools.map((tool: { name: string }) => tool.name)).toContain("jira_record_sdd_event");
     expect(mcpPayload(tools).result.tools.map((tool: { name: string }) => tool.name)).toContain("jira_link_issues");
     expect(mcpPayload(tools).result.tools.map((tool: { name: string }) => tool.name)).not.toContain("cloud_task");
+    expect(mcpPayload(tools).result.tools).toHaveLength(26);
+    for (const tool of mcpPayload(tools).result.tools) {
+      for (const hint of ["readOnlyHint", "destructiveHint", "idempotentHint", "openWorldHint"]) {
+        expect(tool.annotations[hint], `${tool.name}.${hint}`).toBeTypeOf("boolean");
+      }
+    }
     const help = await request(server.app).post("/mcp").set(headers).send({ jsonrpc: "2.0", id: 3, method: "tools/call", params: { name: "jira_help", arguments: {} } }).expect(200);
     expect(mcpPayload(help).result.content[0].text).toContain("jira_create_task");
     const sddPreview = await request(server.app).post("/mcp").set(headers).send({ jsonrpc: "2.0", id: 4, method: "tools/call", params: { name: "sdd_init", arguments: { workspacePath: process.cwd() } } }).expect(200);

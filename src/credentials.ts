@@ -29,6 +29,10 @@ export class CredentialStore {
   resolve(reference: string): string {
     if (reference.startsWith("env:")) {
       const name = reference.slice(4);
+      // Server authentication and encryption secrets are never Jira credentials.
+      if (["MCP_SERVER_BEARER_TOKEN", "MCP_ADMIN_PASSWORD", "JIRA_CREDENTIALS_MASTER_KEY"].includes(name)) {
+        throw new AppError("JIRA_AUTH_FAILED", "Server secrets cannot be used as Jira credentials", 503);
+      }
       const value = process.env[name];
       if (!value) throw new AppError("JIRA_AUTH_FAILED", `Credential environment variable ${name} is unavailable`, 503);
       return value;

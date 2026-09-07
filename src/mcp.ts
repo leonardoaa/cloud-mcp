@@ -28,7 +28,7 @@ type ToolDefinition = {
 const toolDefinitions: ToolDefinition[] = [
   def("jira_help", "List capabilities and common workflows", [], ["topic", "workspacePath"], false, false, "overview"),
   def("jira_list_profiles", "List configured Jira profiles", [], [], false, false, "profiles"),
-  def("jira_create_profile", "Start secure Jira profile creation in the admin UI", [], [], true, false, "profiles"),
+  def("jira_create_profile", "Start secure Jira profile creation in the admin UI", [], [], false, false, "profiles"),
   def("jira_test_connection", "Test a Jira profile connection", ["jiraProfileId"], [], false, false, "profiles"),
   def("jira_list_projects", "List projects accessible through a Jira profile", ["jiraProfileId"], [], false, false, "profiles"),
   def("jira_bind_workspace", "Associate a workspace with a Jira profile and project", ["workspacePath", "jiraProfileId", "jiraProjectKey"], [], true, false, "workspaces"),
@@ -58,12 +58,12 @@ export function createMcpServer(services: Services) {
   const server = new McpServer({ name: "cloud-jira-mcp", version: "0.1.0" });
 
   server.registerTool("jira_help", {
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: "List Jira MCP capabilities, arguments, workflows, and the recommended next action.",
     inputSchema: {
       topic: z.enum(["overview", "profiles", "workspaces", "issues", "transitions", "comments", "attachments", "sdd", "troubleshooting"]).optional(),
       workspacePath: z.string().optional(),
     },
-    annotations: { readOnlyHint: true, openWorldHint: false },
   }, async ({ topic = "overview", workspacePath }) => result(async () => {
     let context: Record<string, unknown> | undefined;
     if (workspacePath) {
@@ -93,72 +93,88 @@ export function createMcpServer(services: Services) {
   }));
 
   server.registerTool("jira_list_profiles", {
-    description: "List configured Jira profiles without credentials.", inputSchema: {}, annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    description: "List configured Jira profiles without credentials.", inputSchema: {},
   }, async () => result(async () => ({ profiles: services.profiles.list(), addNew: { tool: "jira_create_profile" } })));
 
   server.registerTool("jira_create_profile", {
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     description: "Return the secure admin page used to create a Jira profile. Secrets must never be sent as tool arguments.", inputSchema: {},
   }, async () => result(async () => ({ actionRequired: true, url: `${services.adminBaseUrl}/admin/jiras`, message: "Open the authenticated admin page and choose Add Jira." })));
 
   server.registerTool("jira_test_connection", {
-    description: "Test authentication and project visibility for a Jira profile.", inputSchema: { jiraProfileId: z.string() }, annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    description: "Test authentication and project visibility for a Jira profile.", inputSchema: { jiraProfileId: z.string() },
   }, async ({ jiraProfileId }) => result(() => services.profiles.test(jiraProfileId)));
 
   server.registerTool("jira_list_projects", {
-    description: "List projects accessible through a Jira profile.", inputSchema: { jiraProfileId: z.string() }, annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    description: "List projects accessible through a Jira profile.", inputSchema: { jiraProfileId: z.string() },
   }, async ({ jiraProfileId }) => result(() => services.profiles.projects(jiraProfileId)));
 
   server.registerTool("jira_bind_workspace", {
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     description: "Associate a workspace path with a Jira profile and project.", inputSchema: { workspacePath: z.string(), jiraProfileId: z.string(), jiraProjectKey: z.string() },
   }, async ({ workspacePath, jiraProfileId, jiraProjectKey }) => result(() => services.workspaces.bind(workspacePath, jiraProfileId, jiraProjectKey)));
 
   server.registerTool("jira_get_workspace_binding", {
-    description: "Read the Jira binding for a workspace.", inputSchema: { workspacePath: z.string() }, annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    description: "Read the Jira binding for a workspace.", inputSchema: { workspacePath: z.string() },
   }, async ({ workspacePath }) => result(async () => {
     const binding = services.workspaces.resolve(workspacePath);
     return { ...binding, jiraProfile: services.profiles.get(binding.jiraProfileId) };
   }));
 
   server.registerTool("jira_unbind_workspace", {
-    description: "Remove a workspace Jira binding.", inputSchema: { workspaceId: z.string() }, annotations: { destructiveHint: true },
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    description: "Remove a workspace Jira binding.", inputSchema: { workspaceId: z.string() },
   }, async ({ workspaceId }) => result(async () => services.workspaces.remove(workspaceId)));
 
   server.registerTool("jira_get_issue", {
-    description: "Read an issue, subtasks, status, and attachment metadata.", inputSchema: { workspacePath: z.string(), issueKey: z.string() }, annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    description: "Read an issue, subtasks, status, and attachment metadata.", inputSchema: { workspacePath: z.string(), issueKey: z.string() },
   }, async ({ workspacePath, issueKey }) => result(() => services.issues.get(workspacePath, issueKey)));
 
   server.registerTool("jira_create_task", {
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: "Create a task in the project bound to the workspace.", inputSchema: issueCreateShape(false),
   }, async (input: { workspacePath: string; summary: string; description?: string; acceptanceCriteria?: string; issueType?: string; fields?: Record<string, unknown> }) => result(() => services.issues.createTask(input.workspacePath, input)));
 
   server.registerTool("jira_create_subtask", {
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: "Create a subtask under a Jira issue.", inputSchema: issueCreateShape(true),
   }, async (input: { workspacePath: string; parentIssueKey: string; summary: string; description?: string; acceptanceCriteria?: string; fields?: Record<string, unknown> }) => result(() => services.issues.createSubtask(input.workspacePath, input)));
 
   server.registerTool("jira_link_issues", {
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: "Create an issue link (default Relates) from the bound issue to another issue, including across projects.",
     inputSchema: { workspacePath: z.string(), issueKey: z.string(), targetIssueKey: z.string(), linkType: z.string().optional() },
   }, async ({ workspacePath, issueKey, targetIssueKey, linkType }) => result(() => services.issues.linkIssues(workspacePath, issueKey, targetIssueKey, linkType)));
 
   server.registerTool("jira_edit_task", {
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: true },
     description: "Edit fields on a task or subtask; use jira_transition_issue for status.",
     inputSchema: { workspacePath: z.string(), issueKey: z.string(), summary: z.string().optional(), description: z.string().optional(), acceptanceCriteria: z.string().optional(), fields: z.record(z.unknown()).optional() },
   }, async ({ workspacePath, issueKey, ...input }) => result(() => services.issues.edit(workspacePath, issueKey, input)));
 
   server.registerTool("jira_list_transitions", {
-    description: "List transitions currently available for an issue.", inputSchema: { workspacePath: z.string(), issueKey: z.string() }, annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    description: "List transitions currently available for an issue.", inputSchema: { workspacePath: z.string(), issueKey: z.string() },
   }, async ({ workspacePath, issueKey }) => result(() => services.issues.transitions(workspacePath, issueKey)));
 
   server.registerTool("jira_transition_issue", {
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: "Transition a task or subtask to a target status or alias.", inputSchema: { workspacePath: z.string(), issueKey: z.string(), targetStatus: z.string() },
   }, async ({ workspacePath, issueKey, targetStatus }) => result(() => services.issues.transition(workspacePath, issueKey, targetStatus)));
 
   server.registerTool("jira_add_comment", {
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: "Add a plain-text comment to a task or subtask in the workspace-bound Jira project.",
     inputSchema: { workspacePath: z.string(), issueKey: z.string(), body: z.string().min(1).max(10_000) },
   }, async ({ workspacePath, issueKey, body }) => result(() => services.issues.addComment(workspacePath, issueKey, body)));
 
   server.registerTool("jira_record_sdd_event", {
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     description: "Idempotently record a structured SDD lifecycle comment, optionally transitioning the issue first. Reuse eventKey on retry.",
     inputSchema: {
       workspacePath: z.string(), issueKey: z.string(),
@@ -178,10 +194,12 @@ export function createMcpServer(services: Services) {
   }, async ({ workspacePath, issueKey, ...input }) => result(() => services.issues.recordSddEvent(workspacePath, issueKey, input)));
 
   server.registerTool("jira_list_attachments", {
-    description: "List issue attachments and their metadata.", inputSchema: { workspacePath: z.string(), issueKey: z.string() }, annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    description: "List issue attachments and their metadata.", inputSchema: { workspacePath: z.string(), issueKey: z.string() },
   }, async ({ workspacePath, issueKey }) => result(() => services.issues.attachments(workspacePath, issueKey)));
 
   server.registerTool("jira_add_attachment", {
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: "Upload a base64-encoded attachment to an issue with the configured server size limit.",
     inputSchema: {
       workspacePath: z.string(), issueKey: z.string(), fileName: z.string().min(1).max(255),
@@ -191,25 +209,30 @@ export function createMcpServer(services: Services) {
     services.issues.addAttachment(workspacePath, issueKey, fileName, mimeType, dataBase64)));
 
   server.registerTool("jira_read_attachment", {
-    description: "Read an attachment with a server-enforced size limit.", inputSchema: { workspacePath: z.string(), issueKey: z.string(), attachmentId: z.string(), maxBytes: z.number().int().positive().optional() }, annotations: { readOnlyHint: true },
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    description: "Read an attachment with a server-enforced size limit.", inputSchema: { workspacePath: z.string(), issueKey: z.string(), attachmentId: z.string(), maxBytes: z.number().int().positive().optional() },
   }, async ({ workspacePath, issueKey, attachmentId, maxBytes }) => result(() => services.issues.readAttachment(workspacePath, issueKey, attachmentId, maxBytes)));
 
   server.registerTool("confluence_list_spaces", {
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     description: "List Confluence spaces on the Atlassian site bound to the workspace. Filter by space keys when provided.",
-    inputSchema: { workspacePath: z.string(), keys: z.array(z.string()).optional() }, annotations: { readOnlyHint: true },
+    inputSchema: { workspacePath: z.string(), keys: z.array(z.string()).optional() },
   }, async ({ workspacePath, keys }) => result(() => services.confluence.listSpaces(workspacePath, keys)));
 
   server.registerTool("confluence_find_page", {
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     description: "Find a Confluence page by space key and exact title. Use before create/update to avoid duplicates.",
-    inputSchema: { workspacePath: z.string(), spaceKey: z.string(), title: z.string().min(1) }, annotations: { readOnlyHint: true },
+    inputSchema: { workspacePath: z.string(), spaceKey: z.string(), title: z.string().min(1) },
   }, async ({ workspacePath, spaceKey, title }) => result(() => services.confluence.findPage(workspacePath, spaceKey, title)));
 
   server.registerTool("confluence_get_page", {
+    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: true },
     description: "Read a Confluence page with its storage-format body and current version.",
-    inputSchema: { workspacePath: z.string(), pageId: z.string() }, annotations: { readOnlyHint: true },
+    inputSchema: { workspacePath: z.string(), pageId: z.string() },
   }, async ({ workspacePath, pageId }) => result(() => services.confluence.getPage(workspacePath, pageId)));
 
   server.registerTool("confluence_create_page", {
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: true },
     description: "Create a Confluence page in a space, optionally under a parent page. Body defaults to storage-format XHTML.",
     inputSchema: {
       workspacePath: z.string(), spaceKey: z.string(), title: z.string().min(1), body: z.string(),
@@ -218,6 +241,7 @@ export function createMcpServer(services: Services) {
   }, async ({ workspacePath, ...input }) => result(() => services.confluence.createPage(workspacePath, input)));
 
   server.registerTool("confluence_update_page", {
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: true },
     description: "Update a Confluence page by id, auto-incrementing its version. Body defaults to storage-format XHTML.",
     inputSchema: {
       workspacePath: z.string(), pageId: z.string(), title: z.string().min(1), body: z.string(),
@@ -226,13 +250,13 @@ export function createMcpServer(services: Services) {
   }, async ({ workspacePath, ...input }) => result(() => services.confluence.updatePage(workspacePath, input)));
 
   server.registerTool("sdd_init", {
+    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false, openWorldHint: false },
     description: "Detect the caller project stack and preview or apply SDD standards under docs/sdd/templates. Preview is required before apply.",
     inputSchema: {
       workspacePath: z.string().optional(),
       action: z.enum(["preview", "apply"]).default("preview"),
       previewId: z.string().optional(),
     },
-    annotations: { idempotentHint: true, openWorldHint: false },
   }, async ({ workspacePath, action, previewId }, extra) => result(async () => {
     if (action === "apply") {
       if (!previewId) throw new AppError("SDD_PREVIEW_REQUIRED", "previewId is required for apply", 400);
