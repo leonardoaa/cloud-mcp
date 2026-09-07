@@ -189,13 +189,13 @@ export class JiraClient {
       const location = first.headers.get("location");
       if (!location) throw new AppError("ISSUE_NOT_FOUND", "Attachment redirect is missing", 502);
       try {
-        response = await fetch(location, { redirect: "follow", signal: AbortSignal.timeout(30_000) });
+        response = await downloadAttachment(location, this.profile.baseUrl);
       } catch {
         throw new AppError("JIRA_UNAVAILABLE", "Jira attachment download is temporarily unavailable", 503, { transient: true });
       }
     }
     if (!response.ok) throw await jiraError(response);
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = await readLimitedBody(response, limit);
     if (buffer.byteLength > limit) throw new AppError("ATTACHMENT_TOO_LARGE", `Attachment exceeds ${limit} bytes`, 413);
     const mimeType = attachment.mimeType || response.headers.get("content-type") || "application/octet-stream";
     const textual = /^(text\/|application\/(json|xml|csv))/.test(mimeType);
@@ -230,6 +230,7 @@ export class JiraClient {
     try {
       return await fetch(`${this.profile.baseUrl}${path}`, {
         ...rest,
+        redirect: rest.redirect ?? "error",
         signal: options.signal ?? AbortSignal.timeout(timeoutMs),
         headers: requestHeaders,
       });
@@ -279,7 +280,8 @@ export function mapCustomFields(profile: Pick<JiraProfile, "customFieldMap">, fi
 
 async function jiraError(response: Response) {
   let details: unknown;
-  try { details = await response.json(); } catch { details = await response.text(); }
+  const body = await response.text();
+  try { details = JSON.parse(body); } catch { details = body; }
   const transient = response.status === 429 || response.status >= 500;
   const code = response.status === 401 ? "JIRA_AUTH_FAILED" : response.status === 404 ? "ISSUE_NOT_FOUND" : response.status === 429 ? "JIRA_RATE_LIMITED" : response.status >= 500 ? "JIRA_UNAVAILABLE" : "JIRA_REQUEST_FAILED";
   return new AppError(code, `Jira returned HTTP ${response.status}`, response.status, { response: details, transient, retryAfter: response.headers.get("retry-after") ?? undefined });
@@ -287,4 +289,46 @@ async function jiraError(response: Response) {
 
 function normalizeText(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().trim();
+}
+
+// Only the configured site and Atlassian media hosts may serve redirected content.
+// Each hop is validated and no Jira authorization header is forwarded.
+export async function downloadAttachment(location: string, baseUrl: string) {
+  let url = new URL(location, baseUrl);
+  const signal = AbortSignal.timeout(30_000);
+  for (let hop = 0; hop < 5; hop++) {
+    const trusted = url.origin === new URL(baseUrl).origin || url.hostname === "api.media.atlassian.com" || url.hostname.endsWith(".media.atlassian.com");
+    if (url.protocol !== "https:" || url.username || url.password || !trusted) {
+      throw new AppError("JIRA_UNAVAILABLE", "Untrusted attachment redirect", 502);
+    }
+    const response = await fetch(url, { redirect: "manual", signal });
+    if (response.status < 300 || response.status >= 400) return response;
+    const next = response.headers.get("location");
+    await response.body?.cancel();
+    if (!next) throw new AppError("JIRA_UNAVAILABLE", "Attachment redirect is missing", 502);
+    url = new URL(next, url);
+  }
+  throw new AppError("JIRA_UNAVAILABLE", "Too many attachment redirects", 502);
+}
+
+export async function readLimitedBody(response: Response, limit: number) {
+  const reader = response.body?.getReader();
+  if (!reader) return Buffer.alloc(0);
+  const chunks: Buffer[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > limit) {
+        await reader.cancel();
+        throw new AppError("ATTACHMENT_TOO_LARGE", `Attachment exceeds ${limit} bytes`, 413);
+      }
+      chunks.push(Buffer.from(value));
+    }
+    return Buffer.concat(chunks, size);
+  } finally {
+    reader.releaseLock();
+  }
 }

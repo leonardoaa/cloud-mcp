@@ -88,6 +88,7 @@ export class ConfluenceClient {
     try {
       return await fetch(`${this.profile.baseUrl}/wiki${path}`, {
         ...rest,
+        redirect: rest.redirect ?? "error",
         signal: options.signal ?? AbortSignal.timeout(timeoutMs),
         headers: requestHeaders,
       });
@@ -99,7 +100,8 @@ export class ConfluenceClient {
 
 async function confluenceError(response: Response) {
   let details: unknown;
-  try { details = await response.json(); } catch { details = await response.text(); }
+  const body = await response.text();
+  try { details = JSON.parse(body); } catch { details = body; }
   const transient = response.status === 429 || response.status >= 500;
   const code = response.status === 401 || response.status === 403 ? "CONFLUENCE_AUTH_FAILED"
     : response.status === 404 ? "CONFLUENCE_PAGE_NOT_FOUND"
