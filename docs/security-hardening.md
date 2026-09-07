@@ -69,4 +69,4 @@ Os três testes HTTP inicialmente falharam com listen EPERM no sandbox, não por
 
 ## Licença
 
-Não foi encontrada licença em package.json, README, docs ou histórico de arquivos LICENSE. Escolha e titular de copyright aguardam confirmação do autor; nenhuma licença foi presumida.
+Licença MIT adicionada em LICENSE, com Copyright (c) 2026 Leonardo, após autorização explícita do autor. Metadados de package.json e package-lock.json também indicam MIT.
