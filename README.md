@@ -1,5 +1,7 @@
 # Cloud Jira MCP
 
+[![M8ven Verified](https://m8ven.ai/badge/mcp/leonardoaa-cloud-mcp-1xlei2?variant=verified)](https://m8ven.ai/mcp/leonardoaa-cloud-mcp-1xlei2)
+
 MCP Streamable HTTP em TypeScript para operar multiplas instancias Jira Cloud,
 vincular workspaces, criar e editar issues, transicionar workflows, ler anexos e
 administrar tudo por uma interface web.
